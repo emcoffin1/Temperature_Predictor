@@ -1,0 +1,138 @@
+{
+  "generated_from": "2026-11-14T08:59:14+00:00",
+  "initial_temperature_f": 70.37,
+  "minimum_f": 67.91203707541825,
+  "minimum_time": "2026-11-14T08:36:28-08:00",
+  "maximum_f": 71.84161865545951,
+  "maximum_time": "2026-11-14T17:06:42-08:00",
+  "timezone": "America/Los_Angeles",
+  "bias_correction_f_per_hour": 0.04174361342897995,
+  "bias_status": "applied",
+  "recent_baseline_rmse_f": 1.1668133237618405,
+  "recent_corrected_rmse_f": 1.0679637825074935,
+  "forecast_mode": "model_c_uv_proxy",
+  "input_fallbacks": [
+    "uv_index_converted_to_radiation_proxy"
+  ],
+  "error_integrator_correction_f_per_hour": 0.0298576928021805,
+  "error_integrator_status": "applied",
+  "integrator_baseline_one_step_rmse_f": 0.3284382838751894,
+  "integrator_active_one_step_rmse_f": 0.32816566745318876,
+  "hourly_forecast": [
+    {
+      "local_time": "2026-11-14T01:00:00-08:00",
+      "predicted_indoor_f": 70.3652460497334,
+      "outdoor_f": 61.16283333333333
+    },
+    {
+      "local_time": "2026-11-14T02:00:00-08:00",
+      "predicted_indoor_f": 70.02216343181267,
+      "outdoor_f": 61.625345
+    },
+    {
+      "local_time": "2026-11-14T03:00:00-08:00",
+      "predicted_indoor_f": 69.71119912740322,
+      "outdoor_f": 61.37501480658893
+    },
+    {
+      "local_time": "2026-11-14T04:00:00-08:00",
+      "predicted_indoor_f": 69.39063100264987,
+      "outdoor_f": 60.741476864704794
+    },
+    {
+      "local_time": "2026-11-14T05:00:00-08:00",
+      "predicted_indoor_f": 69.02716060444256,
+      "outdoor_f": 59.55025856005923
+    },
+    {
+      "local_time": "2026-11-14T06:00:00-08:00",
+      "predicted_indoor_f": 68.62170108814999,
+      "outdoor_f": 58.867266333518415
+    },
+    {
+      "local_time": "2026-11-14T07:00:00-08:00",
+      "predicted_indoor_f": 68.22863670804574,
+      "outdoor_f": 59.034786846813496
+    },
+    {
+      "local_time": "2026-11-14T08:00:00-08:00",
+      "predicted_indoor_f": 67.95997738091397,
+      "outdoor_f": 60.72658125
+    },
+    {
+      "local_time": "2026-11-14T09:00:00-08:00",
+      "predicted_indoor_f": 67.95414433373493,
+      "outdoor_f": 63.740698439138754
+    },
+    {
+      "local_time": "2026-11-14T10:00:00-08:00",
+      "predicted_indoor_f": 68.24048696388644,
+      "outdoor_f": 66.30850314640014
+    },
+    {
+      "local_time": "2026-11-14T11:00:00-08:00",
+      "predicted_indoor_f": 68.76721159801417,
+      "outdoor_f": 68.78075456790124
+    },
+    {
+      "local_time": "2026-11-14T12:00:00-08:00",
+      "predicted_indoor_f": 69.43771633921523,
+      "outdoor_f": 69.99739811215991
+    },
+    {
+      "local_time": "2026-11-14T13:00:00-08:00",
+      "predicted_indoor_f": 70.11288105502499,
+      "outdoor_f": 70.23703086419754
+    },
+    {
+      "local_time": "2026-11-14T14:00:00-08:00",
+      "predicted_indoor_f": 70.7549269451601,
+      "outdoor_f": 71.52806218767351
+    },
+    {
+      "local_time": "2026-11-14T15:00:00-08:00",
+      "predicted_indoor_f": 71.31228833068147,
+      "outdoor_f": 71.24833370370371
+    },
+    {
+      "local_time": "2026-11-14T16:00:00-08:00",
+      "predicted_indoor_f": 71.68742431058405,
+      "outdoor_f": 70.17899315195261
+    },
+    {
+      "local_time": "2026-11-14T17:00:00-08:00",
+      "predicted_indoor_f": 71.835099353352,
+      "outdoor_f": 67.9
+    },
+    {
+      "local_time": "2026-11-14T18:00:00-08:00",
+      "predicted_indoor_f": 71.76804818096019,
+      "outdoor_f": 65.6390101234568
+    },
+    {
+      "local_time": "2026-11-14T19:00:00-08:00",
+      "predicted_indoor_f": 71.58684063150943,
+      "outdoor_f": 64.67383953359246
+    },
+    {
+      "local_time": "2026-11-14T20:00:00-08:00",
+      "predicted_indoor_f": 71.35012809110972,
+      "outdoor_f": 63.65240407407408
+    },
+    {
+      "local_time": "2026-11-14T21:00:00-08:00",
+      "predicted_indoor_f": 71.07421510817443,
+      "outdoor_f": 63.07370238756247
+    },
+    {
+      "local_time": "2026-11-14T22:00:00-08:00",
+      "predicted_indoor_f": 70.77021160587417,
+      "outdoor_f": 62.24722283916343
+    },
+    {
+      "local_time": "2026-11-14T23:00:00-08:00",
+      "predicted_indoor_f": 70.41335311073856,
+      "outdoor_f": 61.04095777777778
+    }
+  ]
+}

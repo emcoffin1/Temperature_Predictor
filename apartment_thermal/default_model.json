@@ -1,0 +1,11 @@
+{
+  "model": "C-shortwave",
+  "tau_hours": 13.800486516033354,
+  "shortwave_gain_f_per_hour_per_100w": 0.06783335312025772,
+  "background_gain_f_per_hour": 0.22185504369157674,
+  "sensor": "Living Room",
+  "trained_from": "2026-09-07 00:30:00+00:00",
+  "trained_through": "2026-11-15 23:30:00+00:00",
+  "daily_windows": 63,
+  "solar_input": "shortwave_radiation"
+}

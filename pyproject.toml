@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apartment-thermal"
+version = "0.1.0"
+description = "Physics-based Living Room temperature forecasting"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=15",
+    "scipy>=1.13",
+]
+
+[project.scripts]
+apartment-thermal = "apartment_thermal.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["apartment_thermal*"]
+
+[tool.setuptools.package-data]
+apartment_thermal = ["default_model.json", "default_config.json"]

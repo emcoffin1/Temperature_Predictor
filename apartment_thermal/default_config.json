@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "apartment-thermal",
+    "timezone": "America/Los_Angeles",
+    "latitude": 33.81793,
+    "longitude": -118.151891
+  },
+  "schedule": {
+    "daily_forecast_local_time": "01:00",
+    "forecast_end": "local_midnight",
+    "historical_retrain_frequency": "monthly"
+  },
+  "model": {
+    "name": "C-shortwave",
+    "target_sensor": "Living Room",
+    "equation": "dTin/dt=(Tout-Tin)/tau+k_shortwave*(GHI/100)+q0+b_recent",
+    "resample_interval": "30min",
+    "parameters": {
+      "tau_hours": 13.800486516033354,
+      "shortwave_gain_f_per_hour_per_100w": 0.06783335312025772,
+      "background_gain_f_per_hour": 0.22185504369157674
+    },
+    "fit_bounds": {
+      "tau_hours": [1.0, 240.0],
+      "shortwave_gain_f_per_hour_per_100w": [0.0, 2.0],
+      "background_gain_f_per_hour": [-2.0, 2.0]
+    },
+    "training": {
+      "trained_from_utc": "2026-09-07T00:30:00Z",
+      "trained_through_utc": "2026-11-15T23:30:00Z",
+      "daily_windows": 63,
+      "source_file": "temps/combined_latest_10_weeks.parquet",
+      "fit_loss": "soft_l1",
+      "fit_loss_scale_f": 0.5
+    }
+  },
+  "bias_correction": {
+    "enabled": true,
+    "method": "bounded_recent_background_gain",
+    "lookback_days": 7,
+    "half_life_days": 3.0,
+    "maximum_absolute_correction_f_per_hour": 0.75,
+    "minimum_daily_windows": 3,
+    "minimum_points_per_day": 24,
+    "shrinkage_factor": 0.5,
+    "uv_to_shortwave_proxy_w_m2_per_index": 119.91596898101388,
+    "fixed_parameters": ["tau_hours", "shortwave_gain_f_per_hour_per_100w"],
+    "adapted_parameter": "background_gain_f_per_hour",
+    "fallback": "use_historical_parameters_without_correction"
+  },
+  "error_integrator": {
+    "enabled": true,
+    "status": "enabled_after_56_day_walk_forward_validation",
+    "integral_gain_per_hour": 0.02,
+    "leak_factor_per_hour": 0.98,
+    "maximum_absolute_correction_f_per_hour": 0.5,
+    "residual_clip_f": 3.0,
+    "maximum_gap_hours": 2.0,
+    "anti_windup": true,
+    "validation": {
+      "days": 56,
+      "historical_mean_daily_rmse_f": 1.325111,
+      "batch_only_mean_daily_rmse_f": 1.231567,
+      "integrator_only_mean_daily_rmse_f": 1.224140,
+      "batch_plus_integrator_mean_daily_rmse_f": 1.196764,
+      "batch_plus_integrator_p90_daily_rmse_f": 1.961138,
+      "historical_p90_daily_rmse_f": 2.397066,
+      "paired_p_value_vs_historical": 0.011698,
+      "results_file": "research/results/error_integrator_comparison.csv"
+    }
+  },
+  "data_sources": {
+    "operational_store": {
+      "type": "sql_or_parquet",
+      "schema": "fake_data_parquet_schema",
+      "provider": "Google API data saved by the generator",
+      "connection_url_environment_variable": "APARTMENT_DATA_DB_URL",
+      "table": "configure_me",
+      "retention_days": 7,
+      "column_mapping": {
+        "recorded_at": "recorded_at",
+        "sensor": "sensor",
+        "temperature_f": "temperature_f",
+        "valid": "valid",
+        "cloud_cover_percent": "cloud_cover_percent",
+        "wind_speed_mph": "wind_speed_mph",
+        "uv_index": "uv_index",
+        "relative_humidity_percent": "relative_humidity_percent",
+        "dew_point_f": "dew_point_f",
+        "shortwave_radiation_w_m2": "shortwave_radiation_w_m2"
+      },
+      "notes": "Weather values live on sensor=Outside rows. shortwave_radiation_w_m2 is optional; uv_index is converted to a radiation proxy when shortwave is absent."
+    },
+    "long_term_sensor_storage": {
+      "type": "parquet",
+      "directory": "temps",
+      "file_pattern": "temperatures-*.parquet",
+      "combined_training_file": "temps/combined_latest_10_weeks.parquet"
+    },
+    "forecast_rows": {
+      "source": "operational_store",
+      "row_selector": {"sensor": "Outside", "recorded_at": "future"},
+      "minimum_columns": ["recorded_at", "sensor", "temperature_f"],
+      "optional_columns": ["shortwave_radiation_w_m2", "uv_index"],
+      "fallback_without_shortwave": "convert_uv_index_to_radiation_proxy",
+      "fallback_without_shortwave_or_uv": "model_c_with_zero_solar_gain",
+      "fallback_without_outdoor_temperature": "indoor_temperature_persistence"
+    }
+  },
+  "quality": {
+    "maximum_sensor_age_hours": 3.0,
+    "minimum_weather_points": 2,
+    "internal_time_standard": "UTC",
+    "temperature_unit": "F",
+    "radiation_unit": "W/m2"
+  },
+  "outputs": {
+    "curve_csv": "indoor_forecast.csv",
+    "summary_json": "indoor_forecast.json",
+    "trained_parameter_override": "model_c_parameters.json"
+  }
+}
+

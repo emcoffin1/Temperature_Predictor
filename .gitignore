@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Local measurements, downloaded weather, and generated results
+temps/
+*.csv
+*.png
+model_c_parameters.json
+indoor_forecast.json

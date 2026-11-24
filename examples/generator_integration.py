@@ -1,0 +1,19 @@
+"""Minimal example for adding the forecast to an existing generator payload."""
+
+from apartment_thermal import predict_from_combined_data
+
+
+def add_indoor_forecast(
+    payload: dict,
+    database_rows,
+) -> dict:
+    forecast = predict_from_combined_data(
+        data_or_path=database_rows,
+    )
+    payload["indoor_temperature"] = forecast.summary()
+    hourly = forecast.hourly_curve()
+    payload["indoor_temperature_curve"] = [
+        {"time": timestamp.isoformat(), "temperature_f": row.predicted_indoor_f}
+        for timestamp, row in hourly.iterrows()
+    ]
+    return payload
