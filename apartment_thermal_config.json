@@ -8,7 +8,9 @@
   },
   "schedule": {
     "daily_forecast_local_time": "01:00",
+    "refresh_interval_hours": 2,
     "forecast_end": "local_midnight",
+    "preserve_daily_initial_forecast": true,
     "historical_retrain_frequency": "monthly"
   },
   "model": {
@@ -52,12 +54,16 @@
   "error_integrator": {
     "enabled": true,
     "status": "enabled_after_56_day_walk_forward_validation",
+    "lookback_days": 7,
     "integral_gain_per_hour": 0.02,
     "leak_factor_per_hour": 0.98,
     "maximum_absolute_correction_f_per_hour": 0.5,
     "residual_clip_f": 3.0,
     "maximum_gap_hours": 2.0,
     "anti_windup": true,
+    "bootstrap_minimum_history_hours": 12.0,
+    "bootstrap_gain_multiplier": 0.5,
+    "bootstrap_maximum_absolute_correction_f_per_hour": 0.2,
     "validation": {
       "days": 56,
       "historical_mean_daily_rmse_f": 1.325111,

@@ -41,6 +41,8 @@ class IndoorForecast:
     error_integrator_status: str = "not_requested"
     integrator_baseline_one_step_rmse_f: float | None = None
     integrator_active_one_step_rmse_f: float | None = None
+    integrator_observations_used: int = 0
+    integrator_history_hours: float = 0.0
 
     def hourly_curve(
         self,
@@ -108,6 +110,8 @@ class IndoorForecast:
             "integrator_active_one_step_rmse_f": (
                 self.integrator_active_one_step_rmse_f
             ),
+            "integrator_observations_used": self.integrator_observations_used,
+            "integrator_history_hours": self.integrator_history_hours,
         }
 
 
@@ -231,9 +235,12 @@ def predict_remaining_local_day(
     integrator_status = "not_requested"
     integrator_baseline_rmse = None
     integrator_active_rmse = None
+    integrator_observations_used = 0
+    integrator_history_hours = 0.0
     if recent_indoor_data is not None or recent_weather_history is not None:
         if recent_indoor_data is None or recent_weather_history is None:
             bias_status = "fallback: incomplete recent-history inputs"
+            integrator_status = "fallback: incomplete recent-history inputs"
         else:
             runtime_config = (
                 load_config(config)
@@ -241,62 +248,117 @@ def predict_remaining_local_day(
                 else config
             )
             bias_config = runtime_config["bias_correction"]
-            if not bool(bias_config["enabled"]):
-                bias_status = "disabled_by_config"
+            integrator_config = runtime_config["error_integrator"]
+            try:
+                recent_readings = load_indoor_readings(recent_indoor_data, sensor)
+                interval = str(runtime_config["model"]["resample_interval"])
+                recent_readings = (
+                    recent_readings.resample(interval).mean()
+                    .interpolate(limit=2, limit_area="inside").dropna()
+                )
+                recent_weather = normalize_weather(
+                    recent_weather_history, require_radiation=True,
+                )
+                recent_readings = recent_readings.loc[
+                    recent_readings.index.to_series().between(
+                        recent_weather.index.min(), recent_weather.index.max()
+                    )
+                ]
+                if len(recent_readings) >= 2:
+                    integrator_history_hours = float(
+                        (recent_readings.index[-1] - recent_readings.index[0])
+                        .total_seconds() / 3600.0
+                    )
+            except ValueError as error:
+                bias_status = f"fallback: {error}"
+                integrator_status = f"fallback: {error}"
             else:
-                try:
-                    recent_readings = load_indoor_readings(recent_indoor_data, sensor)
-                    interval = str(runtime_config["model"]["resample_interval"])
-                    recent_readings = (
-                        recent_readings.resample(interval).mean()
-                        .interpolate(limit=2, limit_area="inside").dropna()
-                    )
-                    recent_weather = normalize_weather(
-                        recent_weather_history, require_radiation=True,
-                    )
-                    recent_readings = recent_readings.loc[
-                        recent_readings.index.to_series().between(
-                            recent_weather.index.min(), recent_weather.index.max()
+                batch_applied = False
+                if not bool(bias_config["enabled"]):
+                    bias_status = "disabled_by_config"
+                else:
+                    try:
+                        assimilated = estimate_recent_bias(
+                            recent_readings,
+                            recent_weather,
+                            model_parameters,
+                            end=initial_time,
+                            lookback_days=int(bias_config["lookback_days"]),
+                            half_life_days=float(bias_config["half_life_days"]),
+                            maximum_absolute_correction_f_per_hour=float(
+                                bias_config["maximum_absolute_correction_f_per_hour"]
+                            ),
+                            minimum_daily_windows=int(
+                                bias_config["minimum_daily_windows"]
+                            ),
+                            minimum_points_per_day=int(
+                                bias_config["minimum_points_per_day"]
+                            ),
+                            shrinkage_factor=float(bias_config["shrinkage_factor"]),
                         )
-                    ]
-                    assimilated = estimate_recent_bias(
-                        recent_readings,
-                        recent_weather,
-                        model_parameters,
-                        end=initial_time,
-                        lookback_days=int(bias_config["lookback_days"]),
-                        half_life_days=float(bias_config["half_life_days"]),
-                        maximum_absolute_correction_f_per_hour=float(
-                            bias_config["maximum_absolute_correction_f_per_hour"]
-                        ),
-                        minimum_daily_windows=int(bias_config["minimum_daily_windows"]),
-                        minimum_points_per_day=int(bias_config["minimum_points_per_day"]),
-                        shrinkage_factor=float(bias_config["shrinkage_factor"]),
+                        model_parameters = assimilated.corrected_parameters
+                        bias_correction = assimilated.correction_f_per_hour
+                        baseline_rmse = assimilated.baseline_rmse_f
+                        corrected_rmse = assimilated.corrected_rmse_f
+                        bias_status = "applied"
+                        batch_applied = True
+                    except ValueError as error:
+                        bias_status = f"fallback: {error}"
+
+                if not bool(integrator_config["enabled"]):
+                    integrator_status = "disabled_by_config"
+                else:
+                    minimum_history_hours = float(
+                        integrator_config.get("bootstrap_minimum_history_hours", 12.0)
                     )
-                    model_parameters = assimilated.corrected_parameters
-                    bias_correction = assimilated.correction_f_per_hour
-                    baseline_rmse = assimilated.baseline_rmse_f
-                    corrected_rmse = assimilated.corrected_rmse_f
-                    bias_status = "applied"
-                    integrator_config = runtime_config["error_integrator"]
-                    if bool(integrator_config["enabled"]):
+                    if integrator_history_hours < minimum_history_hours:
+                        integrator_status = (
+                            "waiting_for_bootstrap_history: "
+                            f"{integrator_history_hours:.1f}/"
+                            f"{minimum_history_hours:.1f} hours"
+                        )
+                    else:
+                        gain = float(integrator_config["integral_gain_per_hour"])
+                        correction_limit = float(
+                            integrator_config[
+                                "maximum_absolute_correction_f_per_hour"
+                            ]
+                        )
+                        mode = "after_batch"
+                        if not batch_applied:
+                            gain *= float(
+                                integrator_config.get(
+                                    "bootstrap_gain_multiplier", 0.5,
+                                )
+                            )
+                            correction_limit = min(
+                                correction_limit,
+                                float(
+                                    integrator_config.get(
+                                        "bootstrap_maximum_absolute_correction_f_per_hour",
+                                        0.2,
+                                    )
+                                ),
+                            )
+                            mode = "bootstrap"
                         try:
                             integrated = integrate_recent_errors(
                                 recent_readings,
                                 recent_weather,
                                 model_parameters,
                                 end=initial_time,
-                                lookback_days=int(bias_config["lookback_days"]),
-                                integral_gain_per_hour=float(
-                                    integrator_config["integral_gain_per_hour"]
+                                lookback_days=int(
+                                    integrator_config.get(
+                                        "lookback_days",
+                                        bias_config["lookback_days"],
+                                    )
                                 ),
+                                integral_gain_per_hour=gain,
                                 leak_factor_per_hour=float(
                                     integrator_config["leak_factor_per_hour"]
                                 ),
-                                maximum_absolute_correction_f_per_hour=float(
-                                    integrator_config[
-                                        "maximum_absolute_correction_f_per_hour"
-                                    ]
+                                maximum_absolute_correction_f_per_hour=(
+                                    correction_limit
                                 ),
                                 residual_clip_f=float(
                                     integrator_config["residual_clip_f"]
@@ -313,14 +375,10 @@ def predict_remaining_local_day(
                             integrator_active_rmse = (
                                 integrated.integrated_one_step_rmse_f
                             )
-                            integrator_status = "applied"
+                            integrator_observations_used = integrated.observations_used
+                            integrator_status = f"applied_{mode}"
                         except ValueError as error:
                             integrator_status = f"fallback: {error}"
-                    else:
-                        integrator_status = "disabled_by_config"
-                except ValueError as error:
-                    bias_status = f"fallback: {error}"
-                    integrator_status = "not_applied_bias_history_unavailable"
     curve = forecast_curve(
         initial_time,
         initial_temperature,
@@ -357,4 +415,6 @@ def predict_remaining_local_day(
         error_integrator_status=integrator_status,
         integrator_baseline_one_step_rmse_f=integrator_baseline_rmse,
         integrator_active_one_step_rmse_f=integrator_active_rmse,
+        integrator_observations_used=integrator_observations_used,
+        integrator_history_hours=integrator_history_hours,
     )

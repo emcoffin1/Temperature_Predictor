@@ -6,7 +6,8 @@ The production pipeline combines:
 1. a fixed Model C trained from ten weeks of historical data;
 2. a bounded batch correction estimated from the previous seven days;
 3. a leaky error integrator over the same recent residuals; and
-4. future `Outside` rows through local midnight.
+4. two-hour reforecasting anchored to the newest indoor measurement; and
+5. future `Outside` rows through local midnight.
 
 The package consumes the same schema as `fake_data_wk46.parquet`. Production
 does not contact an external weather provider. The generator/database is the
@@ -126,6 +127,26 @@ The integral state adjusts background heat rate. It does not offset the latest
 measured indoor temperature, so every forecast still starts exactly at the
 latest real Living Room reading.
 
+The integrator operates independently of the batch correction. This matters
+during initial deployment, because the batch estimator needs multiple usable
+daily windows while the integrator can begin adapting sooner.
+
+### Short-history bootstrap
+
+Correction is staged according to available overlapping indoor and weather
+history:
+
+```text
+less than 12 hours  re-anchor only; do not integrate
+12 hours onward     bootstrap integrator at 50% gain, capped at +/-0.2 F/hr
+batch available     normal integrator gain and +/-0.5 F/hr cap
+```
+
+The 12-hour delay prevents a fan, open window, cooking event, or a handful of
+noisy readings from producing an aggressive initial correction. Bootstrap
+mode is reported as `error_integrator_status="applied_bootstrap"`; after a
+successful batch correction it is reported as `applied_after_batch`.
+
 ## Validation
 
 All correction modes were tested in a 56-day walk-forward evaluation. Each
@@ -147,20 +168,34 @@ Detailed results and visualization:
 - `research/results/error_integrator_comparison.csv`
 - `research/results/error_integrator_comparison.png`
 
-## Daily Process
+## Daily and Two-Hour Process
 
 A job run around 1:00 a.m. performs the following:
 
 1. Load the fixed ten-week Model C parameters.
 2. Select the latest valid `Living Room` measurement.
 3. Select up to seven days of past `Living Room` and `Outside` rows.
-4. Estimate the bounded batch correction.
-5. Run the leaky error integrator after the batch correction.
+4. Estimate the bounded batch correction when enough daily history exists.
+5. Run the leaky error integrator independently, using bootstrap limits until
+   the batch correction becomes available.
 6. Select future `Outside` rows from the latest measurement through local
    midnight.
 7. Integrate the corrected ODE over the complete future curve.
 8. Return the predicted curve, minimum, maximum, correction diagnostics, and
    explicit fallback status.
+
+The generator should repeat this process every two hours. Every run starts at
+the latest actual Living Room temperature, so accumulated forecast offset is
+not carried into the new curve. Scheduling belongs to the calling generator or
+systemd timer; the library itself does not start background jobs.
+
+For evaluation, retain both outputs:
+
+- the immutable forecast generated near 1:00 a.m.; and
+- the latest two-hour updated forecast.
+
+This preserves a fair full-day accuracy measurement while still serving the
+best currently available prediction.
 
 The forecast uses the complete time series. It does not reduce the day's input
 to only outdoor minimum and maximum temperatures.
@@ -228,7 +263,9 @@ historical Model C remains available.
   "bias_correction_f_per_hour": 0.0417,
   "bias_status": "applied",
   "error_integrator_correction_f_per_hour": 0.0299,
-  "error_integrator_status": "applied"
+  "error_integrator_status": "applied_after_batch",
+  "integrator_observations_used": 322,
+  "integrator_history_hours": 168.0
 }
 ```
 
@@ -313,10 +350,13 @@ apartment-thermal forecast \
 `--detailed-output indoor_forecast_detailed.csv` only when the internal
 integration timestamps are also needed for diagnostics.
 
-Example cron entry:
+Example cron entries that preserve the initial forecast and refresh the live
+forecast every two hours:
 
 ```cron
-0 1 * * * /path/to/.venv/bin/apartment-thermal forecast --combined-data /path/to/apartment-current.parquet --output /path/to/indoor_forecast.csv --summary-output /path/to/indoor_forecast.json
+0 1 * * * /path/to/.venv/bin/apartment-thermal forecast --combined-data /path/to/apartment-current.parquet --output /path/to/indoor_forecast_01am.csv --summary-output /path/to/indoor_forecast_01am.json
+0 1 * * * /path/to/.venv/bin/apartment-thermal forecast --combined-data /path/to/apartment-current.parquet --output /path/to/indoor_forecast_latest.csv --summary-output /path/to/indoor_forecast_latest.json
+0 3-23/2 * * * /path/to/.venv/bin/apartment-thermal forecast --combined-data /path/to/apartment-current.parquet --output /path/to/indoor_forecast_latest.csv --summary-output /path/to/indoor_forecast_latest.json
 ```
 
 ## Historical Retraining
@@ -338,33 +378,37 @@ apartment-thermal forecast \
   --model newer_parameters.json
 ```
 
-Without `--model`, the package uses the ten-week model bundled in the wheel.
+Without `--model`, the package uses its bundled ten-week model.
 
 ## Installation and Deployment
 
-Install the prebuilt wheel:
+For a Git-based server deployment, keep this repository beside the calling
+application and install it into that application's virtual environment:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install apartment_thermal-0.1.0-py3-none-any.whl
+cd ~
+git clone https://github.com/emcoffin1/Temperature_Predictor.git
+cd ~/ESP_Temp_Display
+.venv/bin/pip install -e ../Temperature_Predictor
 ```
 
-Or install from source:
+Update it with:
 
 ```bash
-.venv/bin/pip install .
+cd ~/Temperature_Predictor
+git pull
+sudo systemctl restart temp-display.service
 ```
 
-The wheel contains only the deployable package, fixed model, and default
-configuration. It does not contain local Parquets, research results, or
-development-only external-weather acquisition scripts.
+The installed package contains only deployable code, the fixed model, and its
+default configuration. Local Parquets, research outputs, and development-only
+external-weather acquisition scripts are not runtime dependencies.
 
 ## Repository Layout
 
 - `apartment_thermal/`: deployable model, corrections, API, and CLI
 - `apartment_thermal_config.json`: editable runtime configuration
 - `examples/`: generator integration example
-- `dist/`: uploadable wheel
 - `research/`: model comparisons, backtests, plots, and development-only data
   acquisition
 - `temps/`: local development data, excluded from deployment/source control
